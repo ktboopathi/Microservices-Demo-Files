@@ -1,0 +1,134 @@
+#  Builds a Global Config Server and Creates an AMI for it before terminating the instance. 
+#  ****** RUN THIS ONLY TO CREATE GLOBAL CONFIG SERVER AMI IMAGE. IF THIS IMAGE IS THERE, THEN IGNORE RUNNING THIS SCRIPT *****
+
+- hosts: localhost
+  gather_facts: no
+  vars: 
+     region: us-east-1
+     keypair_name: kops-microservices-demo
+     security_group_name: position-simulator-security-group
+     instance_type: t2.nano
+     image_name: ami-0d5eff06f840b45e9
+   
+  tasks:
+    - name: Setup security group
+      ec2_group:
+        name: "{{ security_group_name }}"
+        description: Security rules for Simulator app
+        region: "{{ region }}"
+        rules_egress:
+            - proto: tcp
+              from_port: 0
+              to_port: 65535
+              cidr_ip: 0.0.0.0/0
+        rules:
+           - proto: tcp
+             from_port: 22
+             to_port: 22
+             cidr_ip: 0.0.0.0/0
+
+    - name: Provision an instance
+      ec2:
+        key_name: "{{ keypair_name }}"
+        group: "{{ security_group_name }}"
+        instance_type: "{{ instance_type }}"
+        image: "{{ image_name }}"
+        wait: true
+        region: "{{region}}"
+        exact_count: 1 
+        count_tag:
+          Name: Simulator_App
+        instance_tags:
+          Name: Simulator_App
+      register: ec2
+
+    - name: Add all instance public IPs to host group
+      add_host: hostname={{ item.public_ip }} groups=ec2hosts
+      with_items: "{{ec2.instances}}"
+
+    - name: Wait for SSH Server to start responding
+      wait_for:
+              port: 22
+              host: "{{item.public_ip}}"
+              state: started
+      with_items: "{{ec2.instances}}"
+
+- hosts: ec2hosts, tag_Name_Simulator_App
+  tasks:
+  
+  - name: A dummy task to see if dynamic inventory is being found
+    debug: msg="Yes, found the inventory"
+
+  - name: upgrade all packages
+    yum: name=* state=latest
+    become: true
+  
+  - name: Ensure git is installed
+    yum: name=git state=latest
+    become: true
+
+  - name: Checkout Project
+    git:
+       repo: https://github.com/ktboopathi/fleetman-position-simulator
+       dest: /home/ec2-user/fleetman-position-simulator/
+       version: master
+
+  - name: Prepare Maven Directory
+    file:
+       path: /opt
+       state: directory
+    become: true
+
+  - name: Download Maven
+    get_url:
+       url: https://www.apache.org/dist/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz
+       dest: /opt/maven3.tar.gz
+    become: true
+
+  - name: Unpack Maven
+    unarchive:
+       remote_src: yes
+       src: /opt/maven3.tar.gz
+       dest: /opt/
+    become: true
+
+  - name: Set Mvn command
+    alternatives:
+       name: mvn
+       path: /opt/apache-maven-3.3.9/bin/mvn
+       link: /usr/bin/mvn
+    become: true
+
+  - name: Install JDK
+    yum:
+       name: java-1.8.0-openjdk-devel
+       state: latest
+    become: true
+
+  - name: Use Java8 for Runtime Java
+    alternatives:
+       name: java
+       path: /usr/lib/jvm/jre-1.8.0-openjdk/bin/java
+       link: /usr/bin/java
+    become: true
+
+  - name: Build the Executable (Using MVN, we could do this on Jenkins)
+    command: mvn -DskipTests package
+    args:
+            chdir: fleetman-position-simulator/
+            creates: fleetman-position-simulator/positionsimulator-0.0.1-SNAPSHOT.jar
+       
+  - name: Build a link to the executable so it becomes a service
+    file:
+            src: /home/ec2-user/fleetman-position-simulator/target/positionsimulator-0.0.1-SNAPSHOT.jar
+            dest: /etc/init.d/position-simulator
+            state: link
+    become: true
+
+  - name: Install Config Server as a startup service
+    service:
+            name: position-simulator
+            state: started
+            enabled: yes
+    become: true
+

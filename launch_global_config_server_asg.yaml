@@ -1,0 +1,56 @@
+# Starts the Auto Scaling Group  for Global Config Server (behind a load balancer for HA)
+# ***** NEED pre-existing custom AMI for this *****
+
+- hosts: localhost
+  gather_facts: no
+  vars: 
+     region: us-east-1
+     keypair_name: kops-microservices-demo
+     security_group_name: config-server-security-group
+     instance_type: t2.nano
+     image_id: ami-08d8032f4d11ad604
+
+  tasks:
+   - name: Setup security group for Config Server
+     ec2_group:
+        name: "{{ security_group_name }}"
+        description: Security rules for Global Config
+        region: "{{ region }}"
+        rules_egress:
+            - proto: tcp
+              from_port: 0
+              to_port: 65535
+              cidr_ip: 0.0.0.0/0
+        rules:
+           - proto: tcp
+             from_port: 8888
+             to_port: 8888
+             cidr_ip: 0.0.0.0/0
+
+           - proto: tcp
+             from_port: 22
+             to_port: 22
+             cidr_ip: 0.0.0.0/0
+     register: config_security
+
+   - name: Setup Launch Configuration for Config Server AMI
+     ec2_lc:
+        name: Config-Launch-Config
+        image_id: "{{ image_id }}"
+        key_name: "{{ keypair_name }}"
+        region: "{{ region }}"
+        security_groups: "{{ config_security.group_id }}"
+        instance_type: "{{ instance_type }}"
+
+   - name: Start Global Config ASG
+     ec2_asg:
+        name: Config-ASG
+        region: "{{ region }}"
+        availability_zones: [ "{{ region }}b", "{{ region }}c" ]
+        launch_config_name: "Config-Launch-Config"
+        min_size: 2
+        max_size: 2
+        tags:
+           - Name: "Config"
+        load_balancers: [ 'global-config-server-elb' ] ## this needs to be changed to actual ELB manually created
+
