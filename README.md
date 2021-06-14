@@ -24,9 +24,9 @@ Changes:
 
 
 Start-up Sequence:
-- Launch Eureka - ansible-playbook launch_eureka_server_asg.yaml -i aws_ansible_inventory_file.yaml
-- Launch global config - ansible-playbook launch_global_config_server_asg.yaml -i aws_ansible_inventory_file.yaml
-- Launch MQ - ansible-playbook launch_activemq_asg.yaml -i aws_ansible_inventory_file.yaml
+- Launch Eureka - ansible-playbook launch_eureka_server_asg.yaml -i aws_ansible_inventory.yaml
+- Launch global config - ansible-playbook launch_global_config_server_asg.yaml -i aws_ansible_inventory.yaml
+- Launch MQ - ansible-playbook launch_activemq_asg.yaml -i aws_ansible_inventory.yaml
 - build & launch position-tracker in Jenkins
-- build & launch position-simulator - ansible-playbook provision_position_simulator.yaml -i aws_ansible_inventory_file.yaml
+- build & launch position-simulator - ansible-playbook provision_position_simulator.yaml -i aws_ansible_inventory.yaml
 - build & launch webapp in Jenkins
