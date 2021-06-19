@@ -1,5 +1,5 @@
 # Microservices-Demo-Files
-cf40290c1481413bb74ba3301fa913db
+
 Pre-requesites: 
 - 1 EIP for Webapp
 - Change Webapp EIP in webapp deploy.yaml
