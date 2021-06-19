@@ -1,0 +1,7 @@
+===================================
+Pre-requesites:
+
+export AWS_ACCESS_KEY_ID=AKIA5TSXWOTTCWGENVBX
+export AWS_SECRET_ACCESS_KEY=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 
+ssh-agent bash
+ssh-add kops-microservices-demo.pem
